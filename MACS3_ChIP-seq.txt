@@ -1,0 +1,1 @@
+macs3 callpeak -t IP.bam -c Input.bam -f BAM -g hs -n MyResult --outdir ./peaks
