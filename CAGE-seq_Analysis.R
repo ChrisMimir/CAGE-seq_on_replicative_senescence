@@ -172,14 +172,8 @@ CTSSs <- CTSSs %>%
 # CTSSs <- calcPooled(CTSSs)
 
 #-----------------------QC------------------
-# 1. 计算每个CTSS在所有样本中的总TPM（按行求和）
-# 假设您的CTSSs对象中已经有TPM assay
 calcTotalTPM <- function(x) rowSums(assay(x, "TPM"))
-
-# 将结果添加到rowData中
 rowData(CTSSs)$total_tpm <- calcTotalTPM(CTSSs)
-
-# 2. 绘制分布图，重点观察低表达区域
 ctss_data <- as.data.frame(rowData(CTSSs))
 freq_table <- table(ctss_data$total_tpm)
 freq_df <- data.frame(
@@ -187,18 +181,15 @@ freq_df <- data.frame(
   count = as.numeric(freq_table)
 )
 
-# 2. 绘制低表达区域的分布（重点关注0-5 TPM范围）
 p1 <- ggplot(freq_df %>% filter(total_tpm <= 5), 
              aes(x = total_tpm, y = count)) +
-  geom_col(fill = "steelblue", alpha = 0.7, width = 0.1) +  # 减小宽度因为TPM是连续值
+  geom_col(fill = "steelblue", alpha = 0.7, width = 0.1) +  
   ggtitle("Distribution of Total TPM per CTSS (Low Range)") +
   xlab("Total TPM (Pooled across all samples)") +
   ylab("Number of CTSS") +
   theme_minimal()
 
-# 3. 绘制CTSS数量随阈值变化的曲线
-# 使用更精细的阈值，因为TPM值较小
-thresholds <- seq(0, 2, by = 0.1)  # 从0到2，步长0.1
+thresholds <- seq(0, 2, by = 0.1)  
 n_ctss <- sapply(thresholds, function(t) {
   sum(ctss_data$total_tpm > t)
 })
@@ -211,20 +202,17 @@ p2 <- ggplot(data.frame(Threshold = thresholds, N_CTSS = n_ctss),
   ylab("Number of CTSS") +
   theme_minimal()
 
-# 显示图形
 print(p1)
 print(p2)
 
-# 4. 输出具体数值帮助决策
 result_df <- data.frame(Threshold = thresholds, N_CTSS = n_ctss)
 result_df$Percent_Remaining <- round(result_df$N_CTSS / n_ctss[1] * 100, 1)
 
-cat("在不同TPM阈值下保留的CTSS数量和百分比:\n")
+cat("CTSS ratio under different threshold:\n")
 print(result_df)
 
-# 5. 寻找拐点 - 计算相邻阈值间CTSS数量的减少量
 result_df$Reduction <- c(0, -diff(result_df$N_CTSS))
-cat("\n相邻TPM阈值间CTSS数量的减少量（寻找拐点）:\n")
+cat("\n CTSS reduction:\n")
 print(result_df[, c("Threshold", "N_CTSS", "Reduction")])
 
 #------------------------------------------
@@ -587,7 +575,6 @@ ggplot(res, aes(x = log2(baseMean),
   facet_grid(clusterType ~ .)
 
 #---------------------------------
-# 1. 统计并生成三行垂直排列的标签
 sig_counts <- res %>%
   filter(padj < 0.05) %>%
   group_by(clusterType) %>%
@@ -597,10 +584,8 @@ sig_counts <- res %>%
     down = sum(log2FoldChange < 0, na.rm = TRUE),
     .groups = 'drop'
   ) %>%
-  # 修改这里：使用 \n 强制换行，分成三行显示
   mutate(label = sprintf("Sig: %d\nUp: %d\nDown: %d", total_sig, up, down))
 
-# 2. 绘制图形并添加数量标签（与之前相同）
 p <-ggplot(res, aes(x = log2(baseMean), 
                     y = log2FoldChange, 
                     color = padj < 0.05)) +
@@ -620,16 +605,8 @@ p <-ggplot(res, aes(x = log2(baseMean),
 
 p_custom <- p + 
   theme(
-    # 1. 将图中所有的文字字体设置为 Arial
     text = element_text(family = "Arial"),
-    
-    # 2. 修改右侧（或顶部）分面框的底色为浅灰色
-    # fill 控制底色，你可以用 "lightgray" 或者具体的十六进制颜色码如 "#F0F0F0"
-    # color = NA 表示去掉框线的边框
     strip.background = element_rect(fill = "#F0F0F0", color = NA),
-    
-    # 3. 修改分面框里面的文字为灰色
-    # 可以用 "gray" 或 "#808080"
     strip.text = element_text(color = "black") 
   )
 
@@ -641,7 +618,6 @@ table(clusterType = rowRanges(RSE)$clusterType,
       DE = res$padj < 0.05)
 
 res_TSS <- res %>%
-  # 筛选出 clusterType 等于 "TSS" 的所有行
   dplyr::filter(clusterType == "TSS")
 
 ggplot(res_TSS, aes(x = log2(baseMean), 
@@ -651,7 +627,6 @@ ggplot(res_TSS, aes(x = log2(baseMean),
   geom_hline(yintercept = 0, 
              linetype = "dashed", 
              alpha = 0.75) +
-  # 由于数据已被筛选，facet_grid(clusterType ~ .) 这一步将只显示 TSS 的图
   facet_grid(clusterType ~ .)
 
 # Find top 10 DE enhancers
@@ -791,27 +766,27 @@ topKEGG(KEGG, number = 20) %>%
 #  PLOT DG
 
 p16vsp12_results <- topTable(eb, coef = "p18vsp3", number = Inf, sort.by = "P")
-# 筛选显著差异表达基因（假设 p 值阈值为 0.05）
+# Screen DE
 sig_genes <- p16vsp12_results %>%
-  filter(adj.P.Val < 0.05 & logFC > 0.6) %>%  # 筛选 FDR 小于 0.05 的基因
+  filter(adj.P.Val < 0.05 & logFC > 0.6) %>%  
   pull(symbol)
 
 sig_genes_entrez <- bitr(sig_genes, fromType = "SYMBOL", 
                          toType = "ENTREZID", 
                          OrgDb = odb)
 
-# GO 富集分析
+# GO enrichment
 ego <- enrichGO(gene = sig_genes_entrez$ENTREZID, OrgDb = odb, 
                 keyType = "ENTREZID", ont = "BP", 
                 pAdjustMethod = "BH", pvalueCutoff = 0.05, qvalueCutoff = 0.05)
 dotplot(ego, showCategory = 10) + ggtitle("GO Enrichment for p16 vs p12")
 
-# KEGG 富集分析
+# KEGG enrichment
 ekegg <- enrichKEGG(gene = sig_genes_entrez$ENTREZID, organism = "hsa", 
                     pAdjustMethod = "BH", pvalueCutoff = 0.05)
 dotplot(ekegg, showCategory = 10) + ggtitle("KEGG Enrichment for p16 vs p12")
 
-# 从 p16vsp3_results 提取必要的列
+#  results 
 volcano_data <- p16vsp12_results %>%
   mutate(
     diffexpressed = case_when(
@@ -819,22 +794,21 @@ volcano_data <- p16vsp12_results %>%
       logFC < -0.6 & adj.P.Val < 0.05 ~ "Downregulated",
       TRUE ~ "NO"
     ),
-    importance = abs(logFC) * -log10(adj.P.Val)  # 计算重要性指标
+    importance = abs(logFC) * -log10(adj.P.Val) 
   )
 
-# 筛选显著的基因
+# DE
 filtered_data <- volcano_data %>%
   filter(diffexpressed != "NO")
 filtered_data
-# 获取最显著的前 15 个基因
+# top15 DE
 top_genes <- filtered_data %>%
   arrange(desc(importance)) %>%
   head(15) %>%
   pull(symbol)
 
-# 为显著基因添加标签
+# Add TAG
 volcano_data$delabel <- NA
-# 添加 top_genes 的基因名到相应的行中
 volcano_data$delabel[volcano_data$symbol %in% top_genes] <- volcano_data$symbol[volcano_data$symbol %in% top_genes]
 
 summary(volcano_data$gene)
@@ -956,19 +930,18 @@ tail(tmp)
 
 #----------------------------------------------------------------
 # Enrichment
-
-# 1. 把每个 cluster 的 SYMBOL 列提取出来并命名为 list
+# 1. Extract SYMBOL of every clusters and name as list 
 
 gene_list <- lapply(tmp, function(cluster_df) {
-  cluster_df$NAME  # 提取基因名（如 RPS19, HSD11B1L 等）
+  cluster_df$NAME  # extrac gene name
 })
 
 names(gene_list) <- paste0(seq_along(gene_list))
 
-# 检查结果
+# check results
 str(gene_list)
 
-# 转换每个 cluster 的基因 SYMBOL 为 ENTREZID，同时保留 cluster 名称
+# convert SYMBOL to ENTREZID，keeo cluster names
 entrez_list <- lapply(gene_list, function(symbols) {
   mapped <- bitr(
     geneID = symbols,
@@ -976,14 +949,13 @@ entrez_list <- lapply(gene_list, function(symbols) {
     toType = "ENTREZID",
     OrgDb = odb
   )
-  # 提取 ENTREZID 并转为字符向量
+  # extract ENTREZID and convert to character
   if (nrow(mapped) == 0) {
-    return(character(0))  # 防止空结果出错
+    return(character(0))  
   }
   as.character(unique(mapped$ENTREZID))
 })
 
-# names 会自动保留，因为 lapply 会继承原 list 的 names
 str(entrez_list)
 
 ego <- compareCluster(
@@ -997,7 +969,7 @@ ego <- compareCluster(
   readable = TRUE
 )
 
-# 可视化
+# plot
 dotplot(ego, showCategory = 3) +
   labs(title = "GO Enrichment")
 
@@ -1030,7 +1002,7 @@ cnetplot(ck,
 
 #Figure 2a-d#
 
-# 载入需要的包
+# packages
 library(DiffLogo)
 library(Biostrings)
 library(ggseqlogo)
@@ -1142,16 +1114,16 @@ young_seqs %>%
 
 #--------------------------------
 
-# 定义一个提取全局碱基频率的函数
+# Define a function
 get_global_freq <- function(seqs, group_name, passage_name) {
-  # 计算所有序列的总碱基计数
+  # calculate base 
   alphabet_counts <- alphabetFrequency(seqs, baseOnly = TRUE)
   total_counts <- colSums(alphabet_counts[, c("A", "C", "G", "T")])
   
-  # 转化为频率（百分比）
+  # convert to frequency
   freqs <- total_counts / sum(total_counts)
   
-  # 转为 data.frame 方便绘图
+  # concert to data.frame 
   data.frame(
     Base = names(freqs),
     Frequency = as.numeric(freqs),
@@ -1160,25 +1132,24 @@ get_global_freq <- function(seqs, group_name, passage_name) {
   )
 }
 
-# --- 处理当前代码中的传代数据 (假设当前对比是 p12 vs p03) ---
+# ------
 
-# 1. 提取 Sharp 组
+# 1. extract Sharp group
 sharp_up_freq <- get_global_freq(sen_seqs[rowData(s_highTSSs)$shape == "Sharp"], "Sharp", "p09_UP")
 sharp_down_freq <- get_global_freq(young_seqs[rowData(y_highTSSs)$shape == "Sharp"], "Sharp", "p03_UP")
 
-# 2. 提取 Broad 组
+# 2. extract Sharp group
 broad_up_freq <- get_global_freq(sen_seqs[rowData(s_highTSSs)$shape == "Broad"], "Broad", "p09_UP")
 broad_down_freq <- get_global_freq(young_seqs[rowData(y_highTSSs)$shape == "Broad"], "Broad", "p03_UP")
 
-# 3. 合并所有数据
+# 3. combine 
 plot_data <- bind_rows(sharp_up_freq, sharp_down_freq, broad_up_freq, broad_down_freq)
 
-# 如果你还有 p16 的数据，按同样方法 get_global_freq 后 bind_rows 进来即可
 
 ggplot(plot_data, aes(x = Base, y = Frequency, fill = Passage)) +
   geom_bar(stat = "identity", position = position_dodge(preserve = "single"), color = "black", width = 0.7) +
   facet_wrap(~Shape) + 
-  scale_fill_brewer(palette = "Set1") + # 或者自定义颜色 scale_fill_manual
+  scale_fill_brewer(palette = "Set1") + 
   scale_y_continuous(labels = scales::percent, expand = c(0, 0), limits = c(0, 0.5)) +
   labs(
     title = "Base Composition Preference across Passages",
@@ -1199,53 +1170,42 @@ plot_data %>%
 
 
 
-# --- 核心：确保变量名与你之前的代码完全一致 ---
+# ------
 
-# 1. 重新明确提取 Sharp TSS 序列（基于你之前的 sen_seqs 和 young_seqs）
-# sen_seqs 对应 p12 (up), young_seqs 对应 p03 (down)
 up_sharp_seqs_fix   <- sen_seqs[rowData(s_highTSSs)$shape == "Sharp"]     
 down_sharp_seqs_fix <- young_seqs[rowData(y_highTSSs)$shape == "Sharp"]   
 
-# 2. 定义计算频率的函数
 get_freq <- function(x) {
   counts <- alphabetFrequency(x, baseOnly = TRUE)
   total <- colSums(counts[, c("A", "C", "G", "T")])
   total / sum(total)
 }
 
-# 3. 计算实际频率
 freq_p09 <- get_freq(up_sharp_seqs_fix) 
 freq_p03 <- get_freq(down_sharp_seqs_fix)
 
-# 4. 构建数据集 (Ratio = p12 / p03)
 plot_data_sharp <- data.frame(
   Base = c("A", "C", "G", "T"),
   Ratio = as.numeric(freq_p09 / freq_p03),
   Passage = "P9"
 )
 
-# 创建基线组 (高度为 1)
 baseline_data <- data.frame(
   Base = c("A", "C", "G", "T"),
   Ratio = 1,
   Passage = "P3"
 )
 
-# 合并
 final_df <- bind_rows(baseline_data, plot_data_sharp)
 
 ggplot(final_df, aes(x = Base, y = Ratio, fill = Passage)) +
-  # 绘制柱子，设置较窄的宽度使其看起来更干练
   geom_bar(stat = "identity", 
            position = position_dodge(width = 0.7), 
            color = "black", 
            width = 0.6) +
-  # 强化基线 y = 1
   geom_hline(yintercept = 1, linetype = "dashed", color = "darkgrey", size = 0.8) +
-  # 严格按照你的配色要求
   scale_fill_manual(values = c("P3" = "#00AFBB", 
                                "P9" = "#F8766D")) +
-  # 调整 Y 轴范围，1.0 以上代表利用率增加
   scale_y_continuous(expand = c(0, 0), 
                      limits = c(0, 1.3), 
                      breaks = seq(0, 1.3, 0.1)) +
@@ -1263,9 +1223,6 @@ ggplot(final_df, aes(x = Base, y = Ratio, fill = Passage)) +
     plot.title = element_text(hjust = 0.5, size = 16, face = "bold")
   )
 #---------------------------
-
-
-
 # Extract results
 res <- results(dds,
                contrast = c("Class", "p16", "p12"),
@@ -1367,45 +1324,18 @@ young_seqs %>%
         axis.ticks.x = element_blank())
 
 #--------------------------------
-
-
-# 定义一个提取全局碱基频率的函数
-get_global_freq <- function(seqs, group_name, passage_name) {
-  # 计算所有序列的总碱基计数
-  alphabet_counts <- alphabetFrequency(seqs, baseOnly = TRUE)
-  total_counts <- colSums(alphabet_counts[, c("A", "C", "G", "T")])
-  
-  # 转化为频率（百分比）
-  freqs <- total_counts / sum(total_counts)
-  
-  # 转为 data.frame 方便绘图
-  data.frame(
-    Base = names(freqs),
-    Frequency = as.numeric(freqs),
-    Shape = group_name,
-    Passage = passage_name
-  )
-}
-
-# --- 处理当前代码中的传代数据 (假设当前对比是 p12 vs p03) ---
-
-# 1. 提取 Sharp 组
 sharp_up_freq <- get_global_freq(sen_seqs[rowData(s_highTSSs)$shape == "Sharp"], "Sharp", "p09_UP")
 sharp_down_freq <- get_global_freq(young_seqs[rowData(y_highTSSs)$shape == "Sharp"], "Sharp", "p03_UP")
-
-# 2. 提取 Broad 组
 broad_up_freq <- get_global_freq(sen_seqs[rowData(s_highTSSs)$shape == "Broad"], "Broad", "p09_UP")
 broad_down_freq <- get_global_freq(young_seqs[rowData(y_highTSSs)$shape == "Broad"], "Broad", "p03_UP")
 
-# 3. 合并所有数据
 plot_data <- bind_rows(sharp_up_freq, sharp_down_freq, broad_up_freq, broad_down_freq)
 
-# 如果你还有 p16 的数据，按同样方法 get_global_freq 后 bind_rows 进来即可
 
 ggplot(plot_data, aes(x = Base, y = Frequency, fill = Passage)) +
   geom_bar(stat = "identity", position = position_dodge(preserve = "single"), color = "black", width = 0.7) +
   facet_wrap(~Shape) + 
-  scale_fill_brewer(palette = "Set1") + # 或者自定义颜色 scale_fill_manual
+  scale_fill_brewer(palette = "Set1") + 
   scale_y_continuous(labels = scales::percent, expand = c(0, 0), limits = c(0, 0.5)) +
   labs(
     title = "Base Composition Preference across Passages",
@@ -1425,54 +1355,40 @@ plot_data %>%
   summarise(GC_Content = sum(Frequency[Base %in% c("G", "C")]))
 
 
-
-# --- 核心：确保变量名与你之前的代码完全一致 ---
-
-# 1. 重新明确提取 Sharp TSS 序列（基于你之前的 sen_seqs 和 young_seqs）
-# sen_seqs 对应 p12 (up), young_seqs 对应 p03 (down)
 up_sharp_seqs_fix   <- sen_seqs[rowData(s_highTSSs)$shape == "Sharp"]     
 down_sharp_seqs_fix <- young_seqs[rowData(y_highTSSs)$shape == "Sharp"]   
 
-# 2. 定义计算频率的函数
 get_freq <- function(x) {
   counts <- alphabetFrequency(x, baseOnly = TRUE)
   total <- colSums(counts[, c("A", "C", "G", "T")])
   total / sum(total)
 }
 
-# 3. 计算实际频率
 freq_p16 <- get_freq(up_sharp_seqs_fix) 
 freq_p12 <- get_freq(down_sharp_seqs_fix)
 
-# 4. 构建数据集 (Ratio = p12 / p03)
 plot_data_sharp <- data.frame(
   Base = c("A", "C", "G", "T"),
   Ratio = as.numeric(freq_p16 / freq_p12),
   Passage = "P16"
 )
 
-# 创建基线组 (高度为 1)
 baseline_data <- data.frame(
   Base = c("A", "C", "G", "T"),
   Ratio = 1,
   Passage = "P12"
 )
 
-# 合并
 final_df <- bind_rows(baseline_data, plot_data_sharp)
 
 ggplot(final_df, aes(x = Base, y = Ratio, fill = Passage)) +
-  # 绘制柱子，设置较窄的宽度使其看起来更干练
   geom_bar(stat = "identity", 
            position = position_dodge(width = 0.7), 
            color = "black", 
            width = 0.6) +
-  # 强化基线 y = 1
   geom_hline(yintercept = 1, linetype = "dashed", color = "darkgrey", size = 0.8) +
-  # 严格按照你的配色要求
   scale_fill_manual(values = c("P12" = "#00AFBB", 
                                "P16" = "#F8766D")) +
-  # 调整 Y 轴范围，1.0 以上代表利用率增加
   scale_y_continuous(expand = c(0, 0), 
                      limits = c(0, 1.3), 
                      breaks = seq(0, 1.3, 0.1)) +
