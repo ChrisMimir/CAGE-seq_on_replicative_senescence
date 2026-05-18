@@ -1497,3 +1497,63 @@ plotTracks(
   fontsize = 16,           
   sizes = c(1.0, rep(1, length(ordered_tracks)), 1.0) 
 )
+
+#--------------------------------------------------------------
+
+#---------------------output fasta-----------------------------
+#sen_sharp
+s_seqs <- s_sharp %>%
+  rowRanges() %>%
+  swapRanges() %>%
+  promoters(upstream = 500, downstream = 500) %>%
+  getSeq(bsg, .)
+
+up_values <- res_up$log2FoldChange
+names(up_values) <- res_up$row
+matched_lfc <- up_values[rownames(s_sharp)]
+names(s_seqs) <- paste0(names(s_seqs), "_log2FC_", round(matched_lfc, 3))
+
+writeXStringSet(s_seqs, filepath =  "sen_sharp_TSS_sequences.fasta")
+
+#young_sharp
+y_seqs <- y_sharp %>%
+  rowRanges() %>%
+  swapRanges() %>%
+  promoters(upstream = 500, downstream = 500) %>%
+  getSeq(bsg, .)
+
+down_values <- res_down$log2FoldChange
+names(down_values) <- res_down$row
+matched_young_lfc <- down_values[rownames(y_sharp)]
+names(y_seqs) <- paste0(names(y_seqs), "_log2FC_", round(matched_young_lfc, 3))
+
+writeXStringSet(y_seqs, filepath =  "young_sharp_TSS_sequences.fasta")
+
+#sen_broad
+s_broad_seqs <- s_broad %>%
+  rowRanges() %>%
+  swapRanges() %>%
+  promoters(upstream = 1000, downstream = 1000) %>%
+  getSeq(bsg, .)
+
+up_values <- res_up$log2FoldChange
+names(up_values) <- res_up$row
+matched_lfc <- up_values[rownames(s_broad)]
+names(s_broad_seqs) <- paste0(names(s_broad_seqs), "_log2FC_", round(matched_lfc, 3))
+
+writeXStringSet(s_broad_seqs, filepath =  "sen_broad_TSS_sequences.fasta")
+
+#young_broad
+y_broad_seqs <- y_broad %>%
+  rowRanges() %>%
+  swapRanges() %>%
+  promoters(upstream = 1000, downstream = 1000) %>%
+  getSeq(bsg, .)
+
+down_values <- res_down$log2FoldChange
+names(down_values) <- res_down$row
+matched_young_lfc <- down_values[rownames(y_broad)]
+names(y_broad_seqs) <- paste0(names(y_broad_seqs), "_log2FC_", round(matched_young_lfc, 3))
+
+writeXStringSet(y_broad_seqs, filepath =  "young_broad_TSS_sequences.fasta")
+            
