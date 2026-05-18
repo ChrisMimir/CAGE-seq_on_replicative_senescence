@@ -614,6 +614,7 @@ p_custom <- p +
 print(p_custom)
 
 #-----------------------------
+#Extended Data Figure 4a
 
 table(clusterType = rowRanges(RSE)$clusterType, 
       DE = res$padj < 0.05)
