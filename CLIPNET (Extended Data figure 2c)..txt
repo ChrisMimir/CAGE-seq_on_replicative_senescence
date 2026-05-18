@@ -1,0 +1,13 @@
+#change the file name accordingly.
+clipnet attribute \
+    -f data/test.fa.gz \
+    -o data/test_quantity_shap.npz \
+    -m clipnet_models/ \
+    -a quantity \
+    -v
+
+# -c maybe needed to avoid precision errors.
+
+# use clipnet_transform.ipynb to process to tobias, change the file name with the real name, motif database: JASPAR2024_CORE_vertebrates_non-redundant.meme
+
+$ TOBIAS BINDetect --motifs test_data/motifs.jaspar --signals test_data/Bcell_footprints.bw test_data/Tcell_footprints.bw --genome test_data/genome.fa.gz --peaks test_data/merged_peaks_annotated.bed --peak_header test_data/merged_peaks_annotated_header.txt --outdir BINDetect_output --cond_names Bcell Tcell --cores 8
