@@ -1,4 +1,5 @@
 # ANANSE BINDING
+# set according to ANANSE workflow: https://anansepy.readthedocs.io/en/master/installation/
 
 # Source cell type
 ananse binding -C enhancers_source.tsv -o source_binding -g hg38
