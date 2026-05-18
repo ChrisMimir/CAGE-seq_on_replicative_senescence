@@ -380,6 +380,7 @@ ggplot(cluster_info, aes(x = txType,
 # Select highly expressed TSSs
 highTSSs <- subset(RSE, clusterType == 'TSS' & score / ncol(RSE) >= 10)
 
+# Extended Data Figure 1d
 # Calculate IQR as 10%-90% interval 
 highTSSs <- calcShape(highTSSs, 
                       pooled = CTSSs, 
@@ -574,7 +575,7 @@ ggplot(res, aes(x = log2(baseMean),
              alpha = 0.75) +
   facet_grid(clusterType ~ .)
 
-#---------------------------------
+#-------Extended Data Figure 1c--------------------------
 sig_counts <- res %>%
   filter(padj < 0.05) %>%
   group_by(clusterType) %>%
@@ -1000,7 +1001,7 @@ cnetplot(ck,
 ##----------------------------------------------------------------##
 ##----------------------------------------------------------------##
 
-#Figure 2a-d#
+#Figure 2a-d# Extended Data Figure 1e, f
 
 # packages
 library(DiffLogo)
