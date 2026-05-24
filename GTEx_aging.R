@@ -6,49 +6,49 @@ library(edgeR)
 library(broom)
 library(limma)
 library(ggplot2)
-# 仅保留用于出版级绘图
+# Keep only for publication-level plotting
 
-# 假设数据已经加载：tissue_exp, sample_annot, subject_annot
+# Assuming data is already loaded: tissue_exp, sample_annot, subject_annot
 
 expr_mat <- tissue_exp@mat    
 row_ann  <- tissue_exp@rid      
 col_ann  <- tissue_exp@cid
 
-# 目标基因
+# Target gene
 target_gene_id <- "ENSG00000123095.6"
 Target_gene <- "BHLHE41"
 
 #=======================================================
-# 2. 构建 metadata (Base R 语法)
+# 2. Build metadata (Base R syntax)
 #=======================================================
 
-# 提取并重命名 sample_info
-# 注意：强烈建议加入缺血时间 SMTSISCH 作为协变量
+# Extract and rename sample_info
+# Note: Strongly recommend adding ischemic time SMTSISCH as a covariate
 sample_info <- sample_annot[, c("SAMPID", "SMTSD", "SMRIN", "SMTSISCH")]
 colnames(sample_info) <- c("SAMPID", "Tissue", "RIN", "IschemicTime")
 sample_info$SUBJID <- substr(sample_info$SAMPID, 1, 10)
 
-# 提取并重命名 subject_info
+# Extract and rename subject_info
 subject_info <- subject_annot[, c("SUBJID", "AGE", "SEX")]
 colnames(subject_info) <- c("SUBJID", "Age", "Sex")
 
-# 合并 metadata 并过滤列注释中存在的样本
+# Merge metadata and filter samples present in column annotations
 meta_full <- merge(sample_info, subject_info, by = "SUBJID")
 meta_full <- meta_full[meta_full$SAMPID %in% col_ann, ]
 
-# 年龄映射
+# Age mapping
 age_map <- c(
   "20-29" = 25, "30-39" = 35, "40-49" = 45,
   "50-59" = 55, "60-69" = 65, "70-79" = 75
 )
 meta_full$Age_num <- age_map[as.character(meta_full$Age)]
 
-# 清理表达矩阵
+# Clean expression matrix
 expr_mat <- as.matrix(expr_mat)
 expr_mat <- expr_mat[!is.na(rownames(expr_mat)), !is.na(colnames(expr_mat))]
 
 #=======================================================
-# 3. 逐组织分析（含 QC 与 协变量校正）
+# 3. Tissue-by-tissue analysis (with QC and covariate adjustment)
 #=======================================================
 
 results_list <- list()
@@ -62,7 +62,7 @@ for (tissue in tissues) {
   #----- QC -----
   is_brain <- grepl("^Brain-", tissue)
   
-  # 提取该组织的样本，并剔除年龄或 RIN 缺失的值
+  # Extract samples for this tissue, excluding missing age or RIN values
   meta_t <- meta_full[meta_full$Tissue == tissue & 
                         !is.na(meta_full$Age_num) & 
                         !is.na(meta_full$RIN), ]
@@ -78,7 +78,7 @@ for (tissue in tissues) {
     next
   }
   
-  #----- 提取表达矩阵与过滤 -----
+  #----- Extract expression matrix and filter -----
   expr_t <- expr_mat[, meta_t$SAMPID, drop = FALSE]
   keep_genes <- rowSums(expr_t >= 1) >= 5
   expr_t_filtered <- expr_t[keep_genes, , drop = FALSE]
@@ -94,15 +94,15 @@ for (tissue in tissues) {
   
   if (!target_gene_id %in% rownames(v$E)) { next }
   
-  #----- 提取目标基因的表达数据 -----
+  #----- Extract target gene expression data -----
   target_voom <- v$E[target_gene_id, ]
   
   df_plot <- meta_t
-  # 使用 match 确保样本对齐
+  # Use match to ensure sample alignment
   df_plot$target_norm <- target_voom[match(df_plot$SAMPID, colnames(v$E))]
   
-  #----- 多元线性回归 (Top Journal Standard) -----
-  # 动态判断性别是否可以作为协变量 (排除卵巢、前列腺等)
+  #----- Multiple linear regression (Top Journal Standard) -----
+  # Dynamically determine if sex can be used as a covariate (exclude ovary, prostate, etc.)
   has_sex_covariate <- length(unique(df_plot$Sex)) > 1
   
   if (has_sex_covariate) {
@@ -111,7 +111,7 @@ for (tissue in tissues) {
     fit <- lm(target_norm ~ Age_num + RIN, data = df_plot)
   }
   
-  # 提取模型结果中的 Age_num 统计量
+  # Extract Age_num statistics from model results
   coef_summary <- summary(fit)$coefficients
   if ("Age_num" %in% rownames(coef_summary)) {
     res_df <- data.frame(
@@ -128,50 +128,50 @@ for (tissue in tissues) {
 }
 
 #=======================================================
-# 4. 合并结果与 FDR 校正 (Base R 实现)
+# 4. Merge results and FDR correction (Base R implementation)
 #=======================================================
 
 if (length(results_list) == 0) stop("No tissues passed QC.")
 
-# 合并列表为数据框
+# Merge list into data frame
 lm_results <- do.call(rbind, results_list)
 plot_df <- do.call(rbind, plot_data_list)
 
-# 计算 FDR 并添加显著性星号
+# Calculate FDR and add significance stars
 lm_results$FDR <- p.adjust(lm_results$p.value, method = "BH")
 lm_results$sig_star <- ifelse(lm_results$FDR < 0.001, "***",
                               ifelse(lm_results$FDR < 0.01, "**",
                                      ifelse(lm_results$FDR < 0.05, "*", "")))
 
-# 构建绘图文本标签
+# Build plot text labels
 lm_results$label <- paste0("N = ", lm_results$N, 
                            "\nβ = ", signif(lm_results$estimate, 3), 
                            "\nFDR = ", signif(lm_results$FDR, 3), " ", lm_results$sig_star)
 
-# 动态计算标签的 x, y 坐标以防止遮挡 (使用 Base R 的 aggregate)
+# Dynamically calculate x, y coordinates for labels to prevent occlusion (using Base R aggregate)
 y_pos <- aggregate(target_norm ~ Tissue, data = plot_df, FUN = function(x) max(x, na.rm = TRUE) * 1.05)
 colnames(y_pos) <- "y_text"
 
 x_pos <- aggregate(Age_num ~ Tissue, data = plot_df, FUN = function(x) min(x, na.rm = TRUE))
 colnames(x_pos) <- "x_text"
 
-# 将坐标合并到 lm_results
-# 1. 计算 y 坐标并强制指定所有列名
+# Merge coordinates into lm_results
+# 1. Calculate y coordinates and force column names
 y_pos <- aggregate(target_norm ~ Tissue, data = plot_df, FUN = function(x) max(x, na.rm = TRUE) * 1.05)
-colnames(y_pos) <- c("Tissue", "y_text") # 强制确保第一列叫 Tissue，第二列叫 y_text
+colnames(y_pos) <- c("Tissue", "y_text") # Force first column to be Tissue, second to be y_text
 
-# 2. 计算 x 坐标并强制指定所有列名
+# 2. Calculate x coordinates and force column names
 x_pos <- aggregate(Age_num ~ Tissue, data = plot_df, FUN = function(x) min(x, na.rm = TRUE))
-colnames(x_pos) <- c("Tissue", "x_text") # 强制确保第一列叫 Tissue，第二列叫 x_text
+colnames(x_pos) <- c("Tissue", "x_text") # Force first column to be Tissue, second to be x_text
 
-# 3. 合并 x 和 y 坐标
+# 3. Merge x and y coordinates
 pos_df <- merge(x_pos, y_pos, by = "Tissue")
 
-# 4. 将坐标合并回统计结果 (检查 lm_results 是否也有 Tissue 列，正常情况下是有的)
+# 4. Merge coordinates back to statistical results (check if lm_results also has Tissue column, which it normally does)
 lm_results <- merge(lm_results, pos_df, by = "Tissue")
 
 #=======================================================
-# 5. 出版级绘图 
+# 5. Publication-level plotting 
 #=======================================================
 
 p <- ggplot(plot_df, aes(x = Age_num, y = target_norm)) +
@@ -206,100 +206,100 @@ library(ComplexHeatmap)
 library(circlize)
 
 #=======================================================
-# 1. 准备和整理数据矩阵
+# 1. Prepare and organize data matrix
 #=======================================================
 
-# (确保 mat_z 是之前步骤生成的 Tissue x Age_num 矩阵，按聚类顺序排序)
-# 为矩阵列命名，使其在热图上显示为年龄段
+# (Assume mat_z is the Tissue x Age_num matrix generated in previous steps, ordered by clustering)
+# Name matrix columns to display as age groups on the heatmap
 colnames(mat_z) <- c("20-29", "30-39", "40-49", "50-59", "60-69", "70-79")
 
-# 确保统计结果 (lm_results) 的顺序与矩阵的行名完全一一对应
+# Ensure the order of statistical results (lm_results) exactly matches the row names of the matrix
 lm_matched <- lm_results[match(rownames(mat_z), lm_results$Tissue), ]
 
-# 构建右侧显示的文本标签：组织名称、Beta 值、FDR 值
+# Build text labels displayed on the right: tissue name, Beta value, FDR value
 tissue_names <- rownames(mat_z)
 beta_text <- sprintf("%.3f", lm_matched$estimate)
-# 拼接 FDR 和显著性星号，保持科学计数法和对齐
+# Concatenate FDR and significance stars, maintaining scientific notation and alignment
 fdr_text <- paste0(sprintf("%.2e", lm_matched$FDR), " ", lm_matched$sig_star)
 
 #=======================================================
-# 2. 定义右侧的复杂统计学和组织注释
+# 2. Define complex statistical and tissue annotations on the right
 #=======================================================
 
 right_annot <- rowAnnotation(
   
-  # 1. 组织名称列
+  # 1. Tissue name column
   Tissue = anno_text(tissue_names, 
                      just = "left",          
                      location = 0,           
                      gp = gpar(fontsize = 10, col = "black")),
   
-  # 2. Beta 值列
+  # 2. Beta value column
   Beta = anno_text(beta_text, 
                    just = "right",          
                    location = 1,           
                    gp = gpar(fontsize = 10, col = "black")),
   
-  # 3. FDR 值列
+  # 3. FDR value column
   "P-value" = anno_text(fdr_text, 
                         just = "left",          
                         location = 0,           
                         gp = gpar(fontsize = 10, col = "black", fontface = "italic")),
   
-  # 关键设置：确保标题在顶部，且不旋转
+  # Key settings: ensure titles are at the top, without rotation
   annotation_name_gp = gpar(fontsize = 11, fontface = "bold"),
   annotation_name_side = "top", 
   annotation_name_rot = 0,
   
-  # 列之间的间距
+  # Spacing between columns
   gap = unit(4, "mm") 
 )
 
 #=======================================================
-# 3. 定义全新热图颜色映射 (上调红，下调绿)
+# 3. Define new heatmap color mapping (up-regulation red, down-regulation green)
 #=======================================================
 
-# Z-score: 负值表示相对下调(绿/蓝)，0表示平均水平(白)，正值表示相对上调(红)
+# Z-score: negative values indicate relative down-regulation (green/blue), 0 indicates average level (white), positive values indicate relative up-regulation (red)
 col_fun <- colorRamp2(
   breaks = c(-2, 0, 2), 
   colors = c("#00AFBB", "white", "#F8766D")
 )
 
 #=======================================================
-# 4. 绘制并输出终极版聚类热图
+# 4. Draw and output final clustered heatmap
 #=======================================================
 
 ht <- Heatmap(
   mat_z,
   name = "Row\nZ-score",             
-  col = col_fun,                     # 应用新的配色
+  col = col_fun,                     # Apply new color scheme
   
-  # 聚类设置
+  # Clustering settings
   cluster_rows = TRUE,               
   clustering_distance_rows = "euclidean",
   clustering_method_rows = "ward.D2",
   cluster_columns = FALSE,           
   
-  # 树状图与行名设置
+  # Dendrogram and row name settings
   row_dend_side = "left",            
-  show_row_names = FALSE,            # 热图自带行名关闭，由注释列代替
+  show_row_names = FALSE,            # Turn off default row names on heatmap, replaced by annotation column
   row_dend_width = unit(2, "cm"),    
   
-  # 添加右侧复杂注释
+  # Add complex annotation on the right
   right_annotation = right_annot,
   
-  # 字体细节设置
+  # Font detail settings
   column_names_gp = gpar(fontsize = 10, fontface = "bold"),
   column_names_rot = 0,             
   
-  # 标题
+  # Title
   column_title = "Age-associated expression of BHLHE41 across tissues (GTEx v10)",
   column_title_gp = gpar(fontsize = 14, fontface = "bold"),
   
-  # 单元格边框
+  # Cell borders
   rect_gp = gpar(col = "white", lwd = 1)
 )
 
-# 【核心修复】：padding 的顺序是 c(上, 右, 下, 左)
-# 将顶部的 padding 从 2mm 增加到 18mm，把隐藏的注释抬头"逼"出来！
+# 【Core fix】：padding order is c(top, right, bottom, left)
+# Increase top padding from 2mm to 18mm to "push out" hidden annotation headers!
 draw(ht, padding = unit(c(18, 10, 2, 2), "mm"))
